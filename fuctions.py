@@ -109,12 +109,12 @@ def rotate_degree(image,angle):
 
 
 
-def flipper(img , mode = "horizontal"):
-    """
-    mode: "horizontal", "vertical", or "both"
-    """
-    if(mode == "horizontal"):
-        return
+# def flipper(img , mode = "horizontal"):
+#     """
+#     mode: "horizontal", "vertical", or "both"
+#     """
+#     if(mode == "horizontal"):
+#         return
 
 img = open_image(image_path)
 img =rotate_degree(img,-45)
