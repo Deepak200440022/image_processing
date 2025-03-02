@@ -4,11 +4,10 @@ import os
 
 
 # change the path of the image to your image
-image_path = r"hd-image.jpg"
+image_path = r"sample_image.jpg"
 
 
 def open_image(path):
-
     """checks if the image exists or not , if exists returns the image"""
 
     if os.path.exists(path):
@@ -69,6 +68,7 @@ def bilinear_interpolation(image, orig_x, orig_y):
     else:
         return np.zeros(3, dtype=np.uint8)  # Return black if out of bounds
 
+
 def rotate_degree(image, angle):
     # change the angle to radian
     theta = np.radians(angle)
@@ -116,7 +116,7 @@ def rotate_degree(image, angle):
             orig_x, orig_y = np.dot(rotation_matrix.T, [x + min_x, y + min_y])
             orig_x, orig_y = int(orig_x + center_width), int(orig_y + center_height)
 
-            rotated_image[y,x] =bilinear_interpolation(image,orig_x, orig_y)
+            rotated_image[y, x] = bilinear_interpolation(image, orig_x, orig_y)
 
     return rotated_image
 
@@ -140,11 +140,11 @@ def flipper(img, mode="horizontal"):
 
 
 # going with simple crop functionality
-def crop(img, x_start, y_start , height, width):
-    return img[y_start: y_start + height, x_start : x_start+ width, :]
+def crop(img, x_start, y_start, height, width):
+    return img[y_start: y_start + height, x_start: x_start + width, :]
 
 
-def rescale(image , new_width , new_height):
+def rescale(image, new_width, new_height):
     height, width, color = image.shape
     scaled_image = np.zeros((new_height, new_width, color), dtype=np.uint8)
     x_scale = width / new_width
@@ -158,35 +158,38 @@ def rescale(image , new_width , new_height):
             scaled_image[y, x] = bilinear_interpolation(image, orig_x, orig_y)
     return scaled_image
 
+
 # grayscale using luminosity
 def grayscale_luminosity(img):
     weights = np.array([0.2989, 0.5870, 0.1140])
-    return  np.dot(img[...,:3], weights).astype(np.uint8)
+    return np.dot(img[..., : 3], weights).astype(np.uint8)
+
 
 # creating a binary white and black image
-def binary_iamge(img , threshold= 128):
+def binary_image(img, threshold=128):
     # convert the image to grayScale first
-    if img.ndim ==3 and img.shape[-1] >= 3:
+    if img.ndim == 3 and img.shape[-1] >= 3:
         gray = grayscale_luminosity(img)
     else:
         gray = img.astype(np.float32)
-    return np.where( gray >= threshold, 255, 0).astype(np.uint8)
+    return np.where(gray >= threshold, 255, 0).astype(np.uint8)
+
 
 # negation
-def Negation(img):
-    """simply retun the complement of the image. 255 is the maximum number, so minus the image from it """
+def negation(img):
+    """simply return the complement of the image. 255 is the maximum number, so minus the image from it """
     return 255 - img
 
 
-
-# adjustion the brightness of the image
-def adjust_brighness(img , brightness = 10):
+# adjust the brightness of the image
+def adjust_brightness(img, brightness=10):
     """simply add the brightness into the image if positive then the image becomes bright
     else it becomes dark and also check if the value is between 0 and 255"""
 
     img = img.astype(np.int16) + brightness
-    img = np.clip(img, 0,255)
+    img = np.clip(img, 0, 255)
     return img.astype(np.uint8)
+
 
 # contrast
 def adjust_contrast(img, factor):
@@ -195,39 +198,40 @@ def adjust_contrast(img, factor):
     Formula:
     New Pixel=(Pixel−128)×Contrast Factor+128
 
-    Contrast Factor > 1 → Increases contrast (makes darks darker and brights brighter).
+    Contrast Factor > 1 → Increases contrast (makes dark's darker and brights brighter).
     Contrast Factor < 1 → Decreases contrast (makes the image more uniform)."""
 
-    img = (img.astype(np.float32) -128) * factor +128
-    return np.clip(img,0,255).astype(np.uint8)
+    img = (img.astype(np.float32) - 128) * factor + 128
+    return np.clip(img, 0, 255).astype(np.uint8)
 
 
 # kernel for the blur
-def gaussian_kernel(size = 3,sigma =1.0):
+def gaussian_kernel(size=3, sigma=1.0):
     """Generate a Gaussian kernel."""
-    ax =  np.linspace(-(size //2), size // 2,size)
-    xx, yy = np.meshgrid(ax,ax)
+    ax = np.linspace(-(size // 2), size // 2, size)
+    xx, yy = np.meshgrid(ax, ax)
     kernel = np.exp(-(xx**2 + yy**2) / (2 * sigma**2))
     return kernel / np.sum(kernel)  # Normalize
 
+
 # convolution
-def convolve(img,kernel):
+def convolve(img, kernel):
     """Apply a convolution with a given kernel."""
     h, w = img.shape[:2]
     k_size = kernel.shape[0]
-    pad = k_size //2
-    img_padded = np.pad(img, ((pad, pad), (pad, pad), (0, 0)), mode='constant') # Zero padding
-    result = np.zeros((h, w,img.shape[2]), dtype=np.float32)
+    pad = k_size // 2
+    img_padded = np.pad(img, ((pad, pad), (pad, pad), (0, 0)), mode='constant')  # Zero padding
+    result = np.zeros((h, w, img.shape[2]), dtype=np.float32)
 
     for c in range(img.shape[2]):
         for i in range(h):
             for j in range(w):
-                result[i, j, c] = np.sum(img_padded[i:i+k_size, j:j+k_size,c] * kernel)
+                result[i, j, c] = np.sum(img_padded[i: i+k_size, j: j+k_size, c] * kernel)
 
     return np.clip(result, 0, 255).astype(np.uint8)
 
 
-def gaussian_blur(img,size=3,sigma=1.0):
+def gaussian_blur(img, size=3, sigma=1.0):
     """
     A Gaussian kernel is a weighted matrix where nearby pixels contribute more than distant ones.
     Example of a 3×3 Gaussian kernel (with σ=1.0):
@@ -246,6 +250,7 @@ def compute_gradient_magnitude_direction(gx, gy):
 
     return np.clip(magnitude, 0, 255).astype(np.uint8), direction
 
+
 def edge_detection(img):
     """Apply Sobel edge detection after converting to grayscale."""
     sobel_x = np.array([[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]], dtype=np.float32)
@@ -253,11 +258,11 @@ def edge_detection(img):
     img = gaussian_blur(img, 5, 1)
     img_gray = grayscale_luminosity(img)  # Use your function
     gx = convolve(img_gray[..., np.newaxis], sobel_x).squeeze()  # Apply Sobel X
-    gy = convolve(img_gray[..., np.newaxis], sobel_y).squeeze() # apply sobel Y
+    gy = convolve(img_gray[..., np.newaxis], sobel_y).squeeze()  # apply sobel Y
 
-    edge_magnitude,direction = compute_gradient_magnitude_direction(gx,gy)
+    edge_magnitude, direction = compute_gradient_magnitude_direction(gx, gy)
 
-    return edge_magnitude,direction
+    return edge_magnitude, direction
 
 
 # applying non-maximum suppression
@@ -293,6 +298,7 @@ def non_maximum_suppression(gradient_tuple):
                 result[i, j] = magnitude[i, j]
 
     return result
+
 
 # Hysteresis Thresholding
 def hysteresis_thresholding(img, low_thresh, high_thresh):
@@ -330,9 +336,36 @@ def canny_edge_detection(img, low_thresh=50, high_thresh=100):
 
     return final_edges
 
-img = open_image(image_path)
-# img =rescale(img, 500,800)
-# img= canny_edge_detection(img)
-img = cv2.resize(img,(500,300))
-show_image(img)
 
+def sharpen(img):
+    """The Laplacian filter is commonly used for sharpening:
+    |0  -1  0|
+    |-1  5  1|
+    |0  -1  0|
+   """
+    kernel = np.array([[0, -1, 0],
+                       [-1, 5, -1],
+                       [0, -1, 0]])
+    return convolve(img, kernel)
+
+
+def compress_image(img, levels=16):
+    """Reduce the number of intensity levels for lossy compression."""
+    factor = 256 // levels  # Compute the scaling factor
+    compressed_img = (img // factor) * factor  # Reduce and reconstruct pixel values
+    return compressed_img.astype(np.uint8)
+
+
+def erase(img, x_start, y_start, height, width):
+    img[y_start: y_start + height, x_start: x_start + width, :] = 0
+    return img
+
+
+def color_filter(img, color="blue"):
+    """uses bgr"""
+    color_dict = {"blue": 0, "green": 1, "red": 2}
+    if color in color_dict:
+        img[:, :, color_dict[color]] = 0
+    else:
+        raise "color not found"
+    return img
