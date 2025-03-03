@@ -214,13 +214,38 @@ def gaussian_kernel(size=3, sigma=1.0):
     return kernel / np.sum(kernel)  # Normalize
 
 
+
+def con2(img, kernel):
+    """Optimized 2D convolution for grayscale images using NumPy."""
+    kernel = np.flipud(np.fliplr(kernel))  # Flip kernel for convolution
+
+    # Get image and kernel dimensions
+    h, w = img.shape[:2]
+    k_size = kernel.shape[0]
+    pad = k_size // 2
+
+    # Pad the image (zero padding)
+    img_padded = np.pad(img, ((pad, pad), (pad, pad)), mode='constant')
+
+    # Create sliding window view of the image
+    strided_shape = (h, w, k_size, k_size)
+    strided_strides = img_padded.strides[:2] + img_padded.strides[:2]
+    img_windows = np.lib.stride_tricks.as_strided(img_padded, shape=strided_shape, strides=strided_strides)
+
+    # Perform element-wise multiplication and sum across kernel dimensions
+    result = np.tensordot(img_windows, kernel, axes=([2, 3], [0, 1]))
+
+    return np.clip(result, 0, 255).astype(np.uint8)
+
+
+
 # convolution
 def convolve(img, kernel):
     """Apply a convolution with a given kernel."""
     h, w = img.shape[:2]
     k_size = kernel.shape[0]
     pad = k_size // 2
-    img_padded = np.pad(img, ((pad, pad), (pad, pad), (0, 0)), mode='constant')  # Zero padding
+    img_padded = np.pad(img, ((pad, pad), (pad, pad)), mode='constant')  # Zero padding
     result = np.zeros((h, w, img.shape[2]), dtype=np.float32)
 
     for c in range(img.shape[2]):
@@ -240,7 +265,7 @@ def gaussian_blur(img, size=3, sigma=1.0):
                       | 1    2    1|
     """
     kernel = gaussian_kernel(size, sigma)
-    return convolve(img, kernel)
+    return con2(img, kernel)
 
 
 def compute_gradient_magnitude_direction(gx, gy):
@@ -255,10 +280,12 @@ def edge_detection(img):
     """Apply Sobel edge detection after converting to grayscale."""
     sobel_x = np.array([[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]], dtype=np.float32)
     sobel_y = np.array([[-1, -2, -1], [0, 0, 0], [1, 2, 1]], dtype=np.float32)
-    img = gaussian_blur(img, 5, 1)
+    img = gaussian_blur(img, 3, 1)
     img_gray = grayscale_luminosity(img)  # Use your function
-    gx = convolve(img_gray[..., np.newaxis], sobel_x).squeeze()  # Apply Sobel X
-    gy = convolve(img_gray[..., np.newaxis], sobel_y).squeeze()  # apply sobel Y
+    gx =con2(img_gray,sobel_x)
+    gy =con2(img_gray,sobel_y)
+    # gx = convolve(img_gray[..., np.newaxis], sobel_x).squeeze()  # Apply Sobel X
+    # gy = convolve(img_gray[..., np.newaxis], sobel_y).squeeze()  # apply sobel Y
 
     edge_magnitude, direction = compute_gradient_magnitude_direction(gx, gy)
 
@@ -369,3 +396,15 @@ def color_filter(img, color="blue"):
     else:
         raise "color not found"
     return img
+# img = open_image(image_path)
+# img,_ = edge_detection(img)
+# show_image(img)
+
+capture = cv2.VideoCapture(0)
+while capture.isOpened():
+    ret, frame = capture.read()
+    if ret :
+        frame,_ = edge_detection(frame)
+        cv2.imshow("image", frame)
+        cv2.waitKey(10)
+
