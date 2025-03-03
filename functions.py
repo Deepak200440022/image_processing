@@ -4,7 +4,7 @@ import os
 
 
 # change the path of the image to your image
-image_path = r"sample_image.jpg"
+image_path = r"flowers.jpg"
 
 
 def open_image(path):
@@ -38,35 +38,26 @@ def rotate_180(img):
     return img[::-1, ::-1]
 
 
-def bilinear_interpolation(image, orig_x, orig_y):
-    """Performs bilinear interpolation for a given (orig_x, orig_y) coordinate."""
-    height, width, channels = image.shape
+import numpy as np
 
-    # Find the surrounding integer coordinates
-    x1, y1 = int(np.floor(orig_x)), int(np.floor(orig_y))
-    x2, y2 = min(x1 + 1, width - 1), min(y1 + 1, height - 1)
-
-    # Check if within bounds
-    if 0 <= x1 < width - 1 and 0 <= y1 < height - 1:
-        a = orig_x - x1  # Fractional part of x
-        b = orig_y - y1  # Fractional part of y
-
-        # Fetch the four neighboring pixels
-        i11 = image[y1, x1]
-        i12 = image[y2, x1]
-        i21 = image[y1, x2]
-        i22 = image[y2, x2]
-
-        # Compute bilinear interpolation
-        interpolated_pixel = (
-                i11 * (1 - a) * (1 - b) +
-                i21 * a * (1 - b) +
-                i12 * (1 - a) * b +
-                i22 * a * b
-        )
-        return interpolated_pixel.astype(np.uint8)
-    else:
-        return np.zeros(3, dtype=np.uint8)  # Return black if out of bounds
+# def bilinear_interpolation(image, orig_x, orig_y):
+#     """Performs bilinear interpolation for a given (orig_x, orig_y) coordinate."""
+#     height, width, channels = image.shape
+#
+#     # Integer and fractional parts of coordinates
+#     x1, y1 = int(np.floor(orig_x)), int(np.floor(orig_y))
+#     x2, y2 = min(x1 + 1, width - 1), min(y1 + 1, height - 1)
+#     a, b = orig_x - x1, orig_y - y1  # Fractional parts
+#
+#     # Fetch four neighboring pixels
+#     i11, i12 = image[y1, x1], image[y2, x1]  # Left column
+#     i21, i22 = image[y1, x2], image[y2, x2]  # Right column
+#
+#     # Bilinear interpolation
+#     return ((1 - a) * (1 - b) * i11 +
+#             a * (1 - b) * i21 +
+#             (1 - a) * b * i12 +
+#             a * b * i22).astype(np.uint8)
 
 
 def rotate_degree(image, angle):
@@ -144,25 +135,77 @@ def crop(img, x_start, y_start, height, width):
     return img[y_start: y_start + height, x_start: x_start + width, :]
 
 
+# def rescale(image, new_width, new_height):
+#     height, width, color = image.shape
+#     scaled_image = np.zeros((new_height, new_width, color), dtype=np.uint8)
+#     x_scale = width / new_width
+#     y_scale = height / new_height
+#
+#     for y in range(new_height):
+#         for x in range(new_width):
+#             # Map new (x, y) to original coordinates
+#             orig_x = x * x_scale
+#             orig_y = y * y_scale
+#             scaled_image[y, x] = bilinear_interpolation(image, orig_x, orig_y)
+#     return scaled_image
+
+
+import numpy as np
+
 def rescale(image, new_width, new_height):
-    height, width, color = image.shape
-    scaled_image = np.zeros((new_height, new_width, color), dtype=np.uint8)
+    """Fast image rescaling using bilinear interpolation."""
+    height, width, channels = image.shape
+
+    # Compute scale factors
     x_scale = width / new_width
     y_scale = height / new_height
 
-    for y in range(new_height):
-        for x in range(new_width):
-            # Map new (x, y) to original coordinates
-            orig_x = x * x_scale
-            orig_y = y * y_scale
-            scaled_image[y, x] = bilinear_interpolation(image, orig_x, orig_y)
-    return scaled_image
+    # Generate coordinate grid for the new image
+    x_coords = np.linspace(0, width - 1, new_width)
+    y_coords = np.linspace(0, height - 1, new_height)
+    x_grid, y_grid = np.meshgrid(x_coords, y_coords)
+
+    # Flatten grids for vectorized processing
+    x_flat, y_flat = x_grid.ravel(), y_grid.ravel()
+
+    # Apply bilinear interpolation for all points at once
+    interpolated_pixels = bilinear_interpolation(image, x_flat, y_flat)
+
+    # Reshape back to the new image shape
+    return interpolated_pixels.reshape((new_height, new_width, channels))
+
+def bilinear_interpolation(image, orig_x, orig_y):
+    """Vectorized bilinear interpolation for an entire grid of (orig_x, orig_y)."""
+    height, width, channels = image.shape
+
+    # Integer and fractional parts of coordinates
+    x1 = np.floor(orig_x).astype(int)
+    y1 = np.floor(orig_y).astype(int)
+    x2 = np.clip(x1 + 1, 0, width - 1)
+    y2 = np.clip(y1 + 1, 0, height - 1)
+    a = orig_x - x1
+    b = orig_y - y1
+
+    # Gather pixel values at four neighboring points
+    Q11 = image[y1, x1]  # Top-left
+    Q21 = image[y1, x2]  # Top-right
+    Q12 = image[y2, x1]  # Bottom-left
+    Q22 = image[y2, x2]  # Bottom-right
+
+    # Bilinear interpolation (vectorized)
+    top = (1 - a)[..., None] * Q11 + a[..., None] * Q21
+    bottom = (1 - a)[..., None] * Q12 + a[..., None] * Q22
+    interpolated_pixels = ((1 - b)[..., None] * top + b[..., None] * bottom).astype(np.uint8)
+
+    return interpolated_pixels
 
 
 # grayscale using luminosity
 def grayscale_luminosity(img):
-    weights = np.array([0.2989, 0.5870, 0.1140])
-    return np.dot(img[..., : 3], weights).astype(np.uint8)
+    """Convert an RGB image to grayscale using luminosity method."""
+    if img.ndim == 3:  # Ensure it's an RGB image
+        img = np.dot(img[..., :3], [0.2989, 0.587, 0.114])  # Convert to grayscale
+    return img.astype(np.uint8)  # Ensure output is 2D
 
 
 # creating a binary white and black image
@@ -207,65 +250,46 @@ def adjust_contrast(img, factor):
 
 # kernel for the blur
 def gaussian_kernel(size=3, sigma=1.0):
-    """Generate a Gaussian kernel."""
+    """Generate a normalized 2D Gaussian kernel."""
     ax = np.linspace(-(size // 2), size // 2, size)
-    xx, yy = np.meshgrid(ax, ax)
-    kernel = np.exp(-(xx**2 + yy**2) / (2 * sigma**2))
-    return kernel / np.sum(kernel)  # Normalize
-
-
-
-def con2(img, kernel):
-    """Optimized 2D convolution for grayscale images using NumPy."""
-    kernel = np.flipud(np.fliplr(kernel))  # Flip kernel for convolution
-
-    # Get image and kernel dimensions
-    h, w = img.shape[:2]
-    k_size = kernel.shape[0]
-    pad = k_size // 2
-
-    # Pad the image (zero padding)
-    img_padded = np.pad(img, ((pad, pad), (pad, pad)), mode='constant')
-
-    # Create sliding window view of the image
-    strided_shape = (h, w, k_size, k_size)
-    strided_strides = img_padded.strides[:2] + img_padded.strides[:2]
-    img_windows = np.lib.stride_tricks.as_strided(img_padded, shape=strided_shape, strides=strided_strides)
-
-    # Perform element-wise multiplication and sum across kernel dimensions
-    result = np.tensordot(img_windows, kernel, axes=([2, 3], [0, 1]))
-
-    return np.clip(result, 0, 255).astype(np.uint8)
-
+    xx, yy = np.meshgrid(ax, ax, indexing='xy')  # Fix shape issues
+    kernel = np.exp(-(xx**2 + yy**2) / (2 * sigma**2)) / (2 * np.pi * sigma**2)
+    return kernel / np.sum(kernel)  # Normalize to sum=1
 
 
 # convolution
 def convolve(img, kernel):
     """Apply a convolution with a given kernel."""
-    h, w = img.shape[:2]
+    kernel = np.flipud(np.fliplr(kernel))  # Flip kernel for proper convolution
+    h, w = img.shape
     k_size = kernel.shape[0]
     pad = k_size // 2
-    img_padded = np.pad(img, ((pad, pad), (pad, pad)), mode='constant')  # Zero padding
-    result = np.zeros((h, w, img.shape[2]), dtype=np.float32)
 
-    for c in range(img.shape[2]):
-        for i in range(h):
-            for j in range(w):
-                result[i, j, c] = np.sum(img_padded[i: i+k_size, j: j+k_size, c] * kernel)
+    # Zero-padding
+    img_padded = np.pad(img, ((pad, pad), (pad, pad)), mode='constant')
+
+    # Create sliding window view
+    strided_shape = (h, w, k_size, k_size)
+    strided_strides = img_padded.strides[:2] + img_padded.strides[:2]
+    img_windows = np.lib.stride_tricks.as_strided(img_padded, shape=strided_shape, strides=strided_strides)
+
+    # Convolution using einsum (better memory efficiency)
+    result = np.einsum('ijkl,kl->ij', img_windows, kernel)
 
     return np.clip(result, 0, 255).astype(np.uint8)
 
 
 def gaussian_blur(img, size=3, sigma=1.0):
-    """
-    A Gaussian kernel is a weighted matrix where nearby pixels contribute more than distant ones.
-    Example of a 3×3 Gaussian kernel (with σ=1.0):
-                      | 1    2    1 |
-                1/16* |  2   4    2 |
-                      | 1    2    1|
-    """
+    """Apply Gaussian blur to an image, ensuring grayscale output."""
     kernel = gaussian_kernel(size, sigma)
-    return con2(img, kernel)
+
+    # Convert to grayscale if image is RGB (H, W, 3)
+    if img.ndim == 3 and img.shape[2] == 3:
+        img = np.mean(img, axis=2).astype(np.uint8)
+
+    blurred = convolve(img, kernel)
+
+    return blurred
 
 
 def compute_gradient_magnitude_direction(gx, gy):
@@ -280,17 +304,15 @@ def edge_detection(img):
     """Apply Sobel edge detection after converting to grayscale."""
     sobel_x = np.array([[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]], dtype=np.float32)
     sobel_y = np.array([[-1, -2, -1], [0, 0, 0], [1, 2, 1]], dtype=np.float32)
-    img = gaussian_blur(img, 3, 1)
-    img_gray = grayscale_luminosity(img)  # Use your function
-    gx =con2(img_gray,sobel_x)
-    gy =con2(img_gray,sobel_y)
-    # gx = convolve(img_gray[..., np.newaxis], sobel_x).squeeze()  # Apply Sobel X
-    # gy = convolve(img_gray[..., np.newaxis], sobel_y).squeeze()  # apply sobel Y
+
+    img = gaussian_blur(img, 3, 1)  # Smooth before detecting edges
+    img_gray = grayscale_luminosity(img)  # Ensure grayscale input
+    gx = convolve(img_gray, sobel_x)  # Sobel X
+    gy = convolve(img_gray, sobel_y)  # Sobel Y
 
     edge_magnitude, direction = compute_gradient_magnitude_direction(gx, gy)
 
     return edge_magnitude, direction
-
 
 # applying non-maximum suppression
 def non_maximum_suppression(gradient_tuple):
@@ -396,15 +418,3 @@ def color_filter(img, color="blue"):
     else:
         raise "color not found"
     return img
-# img = open_image(image_path)
-# img,_ = edge_detection(img)
-# show_image(img)
-
-capture = cv2.VideoCapture(0)
-while capture.isOpened():
-    ret, frame = capture.read()
-    if ret :
-        frame,_ = edge_detection(frame)
-        cv2.imshow("image", frame)
-        cv2.waitKey(10)
-
