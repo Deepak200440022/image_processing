@@ -37,29 +37,6 @@ def rotate_90(img, clockwise=True):
 def rotate_180(img):
     return img[::-1, ::-1]
 
-
-import numpy as np
-
-# def bilinear_interpolation(image, orig_x, orig_y):
-#     """Performs bilinear interpolation for a given (orig_x, orig_y) coordinate."""
-#     height, width, channels = image.shape
-#
-#     # Integer and fractional parts of coordinates
-#     x1, y1 = int(np.floor(orig_x)), int(np.floor(orig_y))
-#     x2, y2 = min(x1 + 1, width - 1), min(y1 + 1, height - 1)
-#     a, b = orig_x - x1, orig_y - y1  # Fractional parts
-#
-#     # Fetch four neighboring pixels
-#     i11, i12 = image[y1, x1], image[y2, x1]  # Left column
-#     i21, i22 = image[y1, x2], image[y2, x2]  # Right column
-#
-#     # Bilinear interpolation
-#     return ((1 - a) * (1 - b) * i11 +
-#             a * (1 - b) * i21 +
-#             (1 - a) * b * i12 +
-#             a * b * i22).astype(np.uint8)
-
-
 def rotate_degree(image, angle):
     # change the angle to radian
     theta = np.radians(angle)
@@ -134,23 +111,6 @@ def flipper(img, mode="horizontal"):
 def crop(img, x_start, y_start, height, width):
     return img[y_start: y_start + height, x_start: x_start + width, :]
 
-
-# def rescale(image, new_width, new_height):
-#     height, width, color = image.shape
-#     scaled_image = np.zeros((new_height, new_width, color), dtype=np.uint8)
-#     x_scale = width / new_width
-#     y_scale = height / new_height
-#
-#     for y in range(new_height):
-#         for x in range(new_width):
-#             # Map new (x, y) to original coordinates
-#             orig_x = x * x_scale
-#             orig_y = y * y_scale
-#             scaled_image[y, x] = bilinear_interpolation(image, orig_x, orig_y)
-#     return scaled_image
-
-
-import numpy as np
 
 def rescale(image, new_width, new_height):
     """Fast image rescaling using bilinear interpolation."""
